@@ -1,0 +1,6 @@
+Test run for /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Tests/bin/Release/net10.0/CashierPOS.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+WARNING: Overwriting results file: /workspace/scratch/874265c9cca7/CashierPOS/verification/results.trx
+Results File: /workspace/scratch/874265c9cca7/CashierPOS/verification/results.trx
+
+Passed!  - Failed:     0, Passed:    38, Skipped:     0, Total:    38, Duration: 1 m 47 s - CashierPOS.Tests.dll (net10.0)

@@ -1,0 +1,10 @@
+  Determining projects to restore...
+  Restored /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Core/CashierPOS.Core.csproj (in 1.31 sec).
+  Restored /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Application/CashierPOS.Application.csproj (in 1.31 sec).
+  Restored /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.WPF/CashierPOS.WPF.csproj (in 1.43 sec).
+  Restored /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Infrastructure/CashierPOS.Infrastructure.csproj (in 1.55 sec).
+  CashierPOS.Core -> /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Core/bin/Release/net10.0/CashierPOS.Core.dll
+  CashierPOS.Application -> /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Application/bin/Release/net10.0/CashierPOS.Application.dll
+  CashierPOS.Infrastructure -> /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Infrastructure/bin/Release/net10.0/CashierPOS.Infrastructure.dll
+  CashierPOS.WPF -> /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.WPF/bin/Release/net10.0-windows/win-x64/CashierPOS.WPF.dll
+  CashierPOS.WPF -> /workspace/scratch/874265c9cca7/portable/

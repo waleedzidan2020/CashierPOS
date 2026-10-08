@@ -1,0 +1,18 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
+using CashierPOS.Core;
+using CashierPOS.Application;
+namespace CashierPOS.WPF;
+public sealed class PrintService(DialogService dialogs) {
+ public void Receipt(SaleReceipt receipt,Dictionary<string,string> settings){var f=dialogs.Form("Receipt size / حجم الإيصال",new Field("size","Paper / الورق",Choices:["80 mm","58 mm","A4"]));if(f==null)return;var width=f["size"]=="58 mm"?219:f["size"]=="80 mm"?302:794;var doc=new FlowDocument{PageWidth=width,ColumnWidth=width,PagePadding=new Thickness(10),FontFamily=new FontFamily("Segoe UI"),FontSize=11,Foreground=Brushes.Black,Background=Brushes.White,FlowDirection=settings.GetValueOrDefault("Language")=="ar"?FlowDirection.RightToLeft:FlowDirection.LeftToRight};
+  Add(doc,settings.GetValueOrDefault("StoreName","CashierPOS"),17,true);Add(doc,settings.GetValueOrDefault("StoreAddress",""));Add(doc,settings.GetValueOrDefault("StorePhone",""));Add(doc,receipt.Sale.InvoiceNumber,13,true);Add(doc,receipt.Sale.CreatedAtUtc.ToLocalTime().ToString("g"));Add(doc,"Cashier / الكاشير: "+receipt.Cashier);
+  foreach(var item in receipt.Items){Add(doc,item.ProductName,11,true);Add(doc,$"{item.Quantity} × {Money.Text(item.UnitPriceCents)}   =   {Money.Text(item.TotalCents)}");}
+  Add(doc,"Discount / الخصم: "+Money.Text(receipt.Sale.DiscountCents));Add(doc,"Tax / الضريبة: "+Money.Text(receipt.Sale.TaxCents));Add(doc,"TOTAL / الإجمالي: "+Money.Text(receipt.Sale.TotalCents)+" "+settings.GetValueOrDefault("Currency","EGP"),15,true);foreach(var p in receipt.Payments)Add(doc,p.Method+": "+Money.Text(p.AmountCents));Add(doc,"Change / الباقي: "+Money.Text(receipt.Sale.ChangeCents));Add(doc,settings.GetValueOrDefault("ReceiptFooter","Thank you"));Show(doc,"Receipt "+receipt.Sale.InvoiceNumber);
+ }
+ public void Table(string title,List<object> rows){var doc=new FlowDocument{PageWidth=1123,ColumnWidth=1060,PagePadding=new Thickness(24),FontSize=11,Foreground=Brushes.Black,Background=Brushes.White};Add(doc,title,20,true);Add(doc,DateTime.Now.ToString("g"));foreach(var row in rows){var text=string.Join("  |  ",row.GetType().GetProperties().Select(p=>$"{p.Name}: {p.GetValue(row)}"));Add(doc,text);}Show(doc,title);}
+ public void PreviewRows(string title,List<object> rows){var window=new Window{Title=title,Width=1000,Height=550,Owner=System.Windows.Application.Current.MainWindow,WindowStartupLocation=WindowStartupLocation.CenterOwner};window.Content=new DataGrid{ItemsSource=rows,AutoGenerateColumns=true,IsReadOnly=true,Margin=new Thickness(15)};window.ShowDialog();}
+ private static void Add(FlowDocument doc,string value,double size=11,bool bold=false)=>doc.Blocks.Add(new Paragraph(new Run(value)){FontSize=size,FontWeight=bold?FontWeights.Bold:FontWeights.Normal,Margin=new Thickness(0,3,0,3)});
+ private static void Show(FlowDocument doc,string title){var win=new Window{Title=title,Width=650,Height=650,Owner=System.Windows.Application.Current.MainWindow,WindowStartupLocation=WindowStartupLocation.CenterOwner};var dock=new DockPanel();var print=new Button{Content="Select printer / PDF • اختيار الطابعة"};DockPanel.SetDock(print,Dock.Top);print.Click+=(_,_)=>{try{var dialog=new PrintDialog();if(dialog.ShowDialog()==true)dialog.PrintDocument(((IDocumentPaginatorSource)doc).DocumentPaginator,title);}catch(Exception ex){MessageBox.Show(win,"Printing failed; the saved transaction is preserved. / تعذرت الطباعة والعملية محفوظة.\n"+ex.Message);}};dock.Children.Add(print);dock.Children.Add(new FlowDocumentScrollViewer{Document=doc,IsToolBarVisible=true});win.Content=dock;win.ShowDialog();}
+}

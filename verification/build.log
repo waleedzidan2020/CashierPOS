@@ -1,0 +1,17 @@
+  Determining projects to restore...
+  Restored /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Core/CashierPOS.Core.csproj (in 1.32 sec).
+  Restored /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Application/CashierPOS.Application.csproj (in 1.37 sec).
+  Restored /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Infrastructure/CashierPOS.Infrastructure.csproj (in 1.61 sec).
+  Restored /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.WPF/CashierPOS.WPF.csproj (in 1.6 sec).
+  1 of 5 projects are up-to-date for restore.
+  CashierPOS.Core -> /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Core/bin/Release/net10.0/CashierPOS.Core.dll
+  CashierPOS.Application -> /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Application/bin/Release/net10.0/CashierPOS.Application.dll
+  CashierPOS.Infrastructure -> /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Infrastructure/bin/Release/net10.0/CashierPOS.Infrastructure.dll
+  CashierPOS.WPF -> /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.WPF/bin/Release/net10.0-windows/CashierPOS.WPF.dll
+  CashierPOS.Tests -> /workspace/scratch/874265c9cca7/CashierPOS/CashierPOS.Tests/bin/Release/net10.0/CashierPOS.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:36.31
