@@ -1,4 +1,4 @@
-name: Windows build and service tests
+name: Windows build, tests and auto-update release
 on: [push, pull_request]
 jobs:
   test:
@@ -11,3 +11,43 @@ jobs:
       - run: dotnet build CashierPOS.sln -c Release -m:1
       - run: dotnet test CashierPOS.Tests/CashierPOS.Tests.csproj -c Release -m:1 --logger trx
       - run: dotnet publish CashierPOS.WPF -c Release -r win-x64 --self-contained true -p:PublishTrimmed=false -o Portable
+
+  release:
+    name: Publish auto-update installer to GitHub Releases
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish Windows app
+        shell: pwsh
+        run: |
+          dotnet publish CashierPOS.WPF/CashierPOS.WPF.csproj -c Release -r win-x64 --self-contained true -p:PublishTrimmed=false -o publish
+          if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
+      - name: Install Velopack CLI
+        shell: pwsh
+        run: |
+          dotnet tool install --global vpk --version 1.2.161
+          if ($LASTEXITCODE -ne 0) { throw "vpk installation failed" }
+      - name: Package and upload GitHub release
+        shell: pwsh
+        env:
+          VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $repo = "https://github.com/${{ github.repository }}"
+          $version = "1.0.${{ github.run_number }}"
+          $releases = gh api "repos/${{ github.repository }}/releases" --jq "length"
+          if ($LASTEXITCODE -ne 0) { throw "Could not inspect prior releases" }
+          if ([int]$releases -gt 0) {
+            vpk download github --repoUrl $repo --token $env:VPK_TOKEN
+            if ($LASTEXITCODE -ne 0) { throw "Could not download prior release metadata" }
+          }
+          vpk pack --packId WaleedZidan.CashierPOS --packVersion $version --packDir publish --mainExe CashierPOS.WPF.exe --runtime win-x64
+          if ($LASTEXITCODE -ne 0) { throw "vpk pack failed" }
+          vpk upload github --repoUrl $repo --token $env:VPK_TOKEN --publish --releaseName "CashierPOS $version" --tag "v$version"
+          if ($LASTEXITCODE -ne 0) { throw "vpk upload failed" }
