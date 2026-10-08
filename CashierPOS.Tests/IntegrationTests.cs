@@ -60,7 +60,7 @@ public sealed class IntegrationTests {
   f.Pos.AdjustStock(employee,product,1,"Count");
   Assert.Equal(11,f.Pos.Products(f.Manager).Single().Stock);
   using var db=f.Factory.Open();Assert.Empty(db.Set<ApprovalDecision>());
-  Assert.Null(db.Set<AuditLog>().Last(x=>x.Action=="Inventory.Adjust").ApprovedBy);
+  Assert.Null(db.Set<AuditLog>().OrderByDescending(x=>x.Id).First(x=>x.Action=="Inventory.Adjust").ApprovedBy);
  }
  [Fact] public void RefundRequiresGrantedPermissionNotManagerApproval(){
   using var f=new Fixture();var employee=f.Employee();var product=f.Product();
