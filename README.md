@@ -50,3 +50,11 @@ Approval tokens bind requester, permission and a hash of the exact operation, ex
 ## Verification
 
 See verification/VERIFICATION.md and the TRX report. Core/Application/Infrastructure and WPF compilation were performed using the .NET SDK on Linux; integration tests run against real SQLite files. A Windows executable was cross-published. Interactive WPF behavior, Windows printer drivers, DPI scaling and physical receipt paper require the included Windows acceptance checks before store use. Build success is not a claim that every original requested feature is complete.
+
+## Auto-update installation (GitHub Releases)
+
+The existing `Portable/CashierPOS.WPF.exe` remains a **manual portable build**. For automatic updates, install **Setup.exe** once from the latest published release at <https://github.com/waleedzidan2020/CashierPOS/releases/latest>. Then use the installed Start-menu shortcut, not the old Portable shortcut.
+
+On every push to `main`, GitHub Actions first builds/tests and then packages a new Windows self-contained release using Velopack. The installed app checks GitHub Releases on startup and every 5 minutes; it automatically downloads new packages, and asks before restarting **only when there is no active cart or operation**. If the cashier is busy or declines to restart, the update is applied on the next launch. Network failure does not prevent sales or offline use. No self-hosted runner or personal access token on the cashier PC is needed because this repository is public.
+
+The application continues to store SQLite data, logs, and backups outside the installation in `%LOCALAPPDATA%\\CashierPOS`. Create a backup before deploying schema-changing versions; auto-update is not a replacement for a database migration/rollback plan. The first Velopack Setup.exe installation is necessary: the previously published raw exe cannot self-update retroactively.
