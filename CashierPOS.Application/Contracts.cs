@@ -11,7 +11,6 @@ public interface IClock { DateTime UtcNow {get;} }
 public sealed class SystemClock : IClock { public DateTime UtcNow=>DateTime.UtcNow; }
 public sealed record Session(long UserId,string Username,string FullName,bool IsManager,int Version,DateTime AuthenticatedAtUtc,Guid Token);
 public sealed class DomainException(string message) : Exception(message);
-public sealed class ApprovalRequiredException(string permission,string payload) : Exception("Manager approval required: "+permission) { public string Permission {get;}=permission; public string Payload {get;}=payload; }
 public static class Permissions {
  public static readonly string[] ManagerOnly=["Users.Manage","Permissions.Manage","AuditLogs.View","Backup.Create","Backup.Restore","Settings.Manage"];
  public static readonly string[] EmployeeDefault=["Sales.Create","Sales.ViewOwn","Sales.Suspend","Products.View","Inventory.View","Shifts.Own","Reports.ViewOwn","Receipts.Print"];
@@ -22,10 +21,10 @@ public sealed record UserView(long Id,string Username,string FullName,string Rol
 public sealed record ProductInput(long Id,string SKU,string Barcode,string Name,decimal Cost,decimal Price,int MinimumStock,long? CategoryId=null,long? SupplierId=null);
 public sealed record CartLine(long ProductId,int Quantity,long? OverridePriceCents=null,long? ExpectedPriceCents=null);
 public sealed record Tender(string Method,long AmountCents);
-public sealed record Checkout(Guid RequestId,List<CartLine> Lines,long DiscountCents,List<Tender> Payments,long? CustomerId=null,string Notes="",Guid? Approval=null);
+public sealed record Checkout(Guid RequestId,List<CartLine> Lines,long DiscountCents,List<Tender> Payments,long? CustomerId=null,string Notes="");
 public sealed record SaleReceipt(Sale Sale,List<SaleItem> Items,List<Payment> Payments,string Cashier);
 public sealed record Report(DateTime FromUtc,DateTime ToUtc,long SalesCents,long RefundCents,long NetRevenueCents,long TaxCents,long? GrossProfitCents,long? ExpensesCents,long? NetProfitCents,int Transactions,int LowStock,List<Sale> Sales);
-public sealed record RefundInput(Guid RequestId,long SaleItemId,int Quantity,bool Restock,string Reason,Guid? Approval=null);
+public sealed record RefundInput(Guid RequestId,long SaleItemId,int Quantity,bool Restock,string Reason);
 public sealed record PurchaseLine(long ProductId,int Quantity,long CostCents);
 public sealed record ImportRow(int Row,string SKU,string Barcode,string Name,decimal Cost,decimal Price,int Quantity,int MinimumStock);
 public sealed record ImportResult(int Created,int Updated,int Skipped,List<string> Errors);
