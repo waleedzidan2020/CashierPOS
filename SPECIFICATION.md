@@ -1,3 +1,5 @@
+> **Implementation update (October 2026):** Manager approval dialogs and single-use approvals described in this original specification have been retired. The current application enforces explicitly granted Employee permissions instead; unauthorized operations are denied rather than requesting a manager's password. Historical approval schema is retained for database compatibility. See README / FEATURES for current behavior.
+
 # MASTER DEVELOPMENT PROMPT — PROFESSIONAL WPF CASHIER & POS MANAGEMENT SYSTEM
 
 ## ROLE
