@@ -37,6 +37,7 @@ jobs:
       - name: Package and upload GitHub release
         shell: pwsh
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $repo = "https://github.com/${{ github.repository }}"
