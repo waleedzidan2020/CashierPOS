@@ -14,7 +14,7 @@ public sealed class AutoUpdateService : IDisposable
     private const string Repository = "https://github.com/waleedzidan2020/CashierPOS";
     private readonly Window owner;
     private readonly Func<bool> safeToRestart;
-    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMinutes(15) };
+    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMinutes(5) };
     private bool busy;
     private bool disposed;
     private bool prompted;
