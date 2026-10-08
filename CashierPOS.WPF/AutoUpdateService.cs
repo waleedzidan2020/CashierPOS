@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using Velopack;
+using Velopack.Exceptions;
 using Velopack.Sources;
 
 namespace CashierPOS.WPF;
