@@ -33,24 +33,6 @@ public sealed class SecurityService(IDbFactory factory,IPasswordHasher hasher,IC
  }
  public bool Can(Session s,string code) {using var db=factory.Open();return Can(db,s,code);}
  public void Require(IPosDb db,Session s,string code) {if(!Can(db,s,code))throw new DomainException("Permission denied: "+code);}
- public long? RequireOrApproval(IPosDb db,Session s,string permission,string payload,Guid? token,bool force=false) {
-  ValidateSession(db,s);if(!force&&Can(db,s,permission))return null;
-  if(Permissions.ManagerOnly.Contains(permission))throw new DomainException("Manager-only operation.");
-  if(token is null)throw new ApprovalRequiredException(permission,payload);
-  var a=db.Set<ApprovalDecision>().SingleOrDefault(x=>x.Token==token.Value);
-  if(a==null||a.EmployeeId!=s.UserId||a.Permission!=permission||a.PayloadHash!=Hash(payload)||a.UsedAtUtc!=null||a.ExpiresAtUtc<=clock.UtcNow)throw new DomainException("Approval is invalid, used, expired or belongs to another operation.");
-  var manager=db.Set<User>().Single(x=>x.Id==a.ManagerId);
-  if(!manager.IsActive||manager.LockedUntilUtc>clock.UtcNow||!db.Set<Role>().Any(x=>x.Id==manager.RoleId&&x.Name=="Manager"))throw new DomainException("Approving manager is no longer authorized.");
-  a.UsedAtUtc=clock.UtcNow;return manager.Id;
- }
- public Guid Approve(Session employee,string username,string password,string permission,string payload,string reason) {
-  if(string.IsNullOrWhiteSpace(reason))throw new DomainException("An approval reason is required.");
-  var manager=Login(username,password);if(!manager.IsManager)throw new DomainException("Approval requires an active Manager.");
-  using var db=factory.Open();using var tx=db.Begin();ValidateSession(db,employee);Require(db,manager,permission);
-  if(Permissions.ManagerOnly.Contains(permission))throw new DomainException("This permission cannot be delegated.");
-  var a=new ApprovalDecision{Token=Guid.NewGuid(),EmployeeId=employee.UserId,ManagerId=manager.UserId,Permission=permission,PayloadHash=Hash(payload),Reason=reason.Trim(),ExpiresAtUtc=clock.UtcNow.AddMinutes(2)};
-  db.Add(a);Log(db,employee.UserId,"Manager.Approval",permission,null,"Payload hash: "+a.PayloadHash+"; reason: "+reason,manager.UserId);db.Save();tx.Commit();return a.Token;
- }
  public List<UserView> Users(Session s){using var db=factory.Open();Require(db,s,"Users.Manage");return (from u in db.Set<User>() join r in db.Set<Role>() on u.RoleId equals r.Id select new UserView(u.Id,u.Username,u.FullName,r.Name,u.IsActive,u.FailedLoginAttempts)).ToList();}
  public long CreateUser(Session s,string username,string name,string password,bool manager=false){ValidateUser(username,name,password);using var db=factory.Open();using var tx=db.Begin();Require(db,s,"Users.Manage");var norm=Normalize(username);if(db.Set<User>().Any(x=>x.NormalizedUsername==norm))throw new DomainException("Username already exists.");var u=new User{Username=username.Trim(),NormalizedUsername=norm,FullName=name.Trim(),PasswordHash=hasher.Hash(password),RoleId=db.Set<Role>().Single(r=>r.Name==(manager?"Manager":"Employee")).Id,CreatedBy=s.UserId,CreatedAtUtc=clock.UtcNow};db.Add(u);db.Save();Log(db,s.UserId,"User.Create","User",u.Id);db.Save();tx.Commit();return u.Id;}
  public void SetActive(Session s,long id,bool active){using var db=factory.Open();using var tx=db.Begin();Require(db,s,"Users.Manage");var u=db.Set<User>().Single(x=>x.Id==id);var managerId=db.Set<Role>().Single(x=>x.Name=="Manager").Id;if(!active&&u.RoleId==managerId&&u.IsActive&&db.Set<User>().Count(x=>x.IsActive&&x.RoleId==managerId)<=1)throw new DomainException("Cannot deactivate the last active Manager.");u.IsActive=active;u.SessionVersion++;Log(db,s.UserId,"User.Active","User",id,"Active="+active);db.Save();tx.Commit();}

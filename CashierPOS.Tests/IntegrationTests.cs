@@ -30,9 +30,49 @@ public sealed class IntegrationTests {
  [Fact] public void CardOverpaymentCannotProduceCashChange(){using var f=new Fixture();var id=f.Product();f.Pos.OpenShift(f.Manager,0);Assert.Throws<DomainException>(()=>f.Pos.Checkout(f.Manager,f.Input(id) with{Payments=[new Tender("Card",1100)]}));}
  [Fact] public void MixedTenderCashReconciliationUsesNetCashOnly(){using var f=new Fixture();var id=f.Product();f.Pos.OpenShift(f.Manager,10);var receipt=f.Pos.Checkout(f.Manager,f.Input(id) with{Payments=[new Tender("Card",600),new Tender("Cash",800)]});Assert.Equal(400,receipt.Sale.ChangeCents);Assert.Equal(1400,f.Pos.ExpectedCash(f.Manager));f.Pos.CashInOut(f.Manager,-2,"Paid out");Assert.Equal(1200,f.Pos.ExpectedCash(f.Manager));Assert.Equal(-100,f.Pos.CloseShift(f.Manager,11,"Count discrepancy"));}
  [Fact] public void ASecondOpenShiftOnSingleDrawerIsRejected(){using var f=new Fixture();var e=f.Employee();f.Pos.OpenShift(f.Manager,0);Assert.Throws<DomainException>(()=>f.Pos.OpenShift(e,0));}
- [Fact] public void ManagerApprovalIsPayloadBoundOneTimeAndDoesNotGrantPermission(){using var f=new Fixture();var e=f.Employee();var id=f.Product();f.Pos.OpenShift(e,0);var input=f.Input(id) with{DiscountCents=100};var failure=Assert.Throws<ApprovalRequiredException>(()=>f.Pos.Checkout(e,input));var token=f.Security.Approve(e,"manager","SafePass1234",failure.Permission,failure.Payload,"Customer service");Assert.Throws<DomainException>(()=>f.Pos.Checkout(e,input with{RequestId=Guid.NewGuid(),Approval=token}));var receipt=f.Pos.Checkout(e,input with{Approval=token});Assert.Equal(900,receipt.Sale.TotalCents);Assert.False(f.Security.Can(e,"Sales.ApplyDiscount"));Assert.Throws<DomainException>(()=>f.Pos.Checkout(e,input with{RequestId=Guid.NewGuid(),Approval=token}));using var db=f.Factory.Open();Assert.NotNull(db.Set<ApprovalDecision>().Single().UsedAtUtc);}
- [Fact] public void ForgedManagerFlagCannotBypassEmployeeDiscountThreshold(){using var f=new Fixture();var e=f.Employee();f.Security.Override(f.Manager,e.UserId,"Sales.ApplyDiscount",true);var id=f.Product();f.Pos.OpenShift(e,0);Assert.Throws<ApprovalRequiredException>(()=>f.Pos.Checkout(e with{IsManager=true},f.Input(id) with{DiscountCents=1}));}
- [Fact] public void ExpiredApprovalIsRejected(){using var f=new Fixture();var e=f.Employee();var id=f.Product();var failure=Assert.Throws<ApprovalRequiredException>(()=>f.Pos.AdjustStock(e,id,1,"Count"));var token=f.Security.Approve(e,"manager","SafePass1234",failure.Permission,failure.Payload,"Reviewed");f.Clock.UtcNow=f.Clock.UtcNow.AddMinutes(3);Assert.Throws<DomainException>(()=>f.Pos.AdjustStock(e,id,1,"Count",token));}
+ [Fact] public void CashierCanCheckOutNormallyWithoutManagerApproval(){
+  using var f=new Fixture();var employee=f.Employee();var product=f.Product();
+  f.Pos.OpenShift(employee,0);
+  var sale=f.Pos.Checkout(employee,f.Input(product));
+  Assert.Equal(1000,sale.Sale.TotalCents);
+  Assert.Equal(employee.UserId,sale.Sale.UserId);
+  using var db=f.Factory.Open();
+  Assert.Empty(db.Set<ApprovalDecision>());
+  Assert.Null(db.Set<AuditLog>().Single(x=>x.Action=="Sale.Complete").ApprovedBy);
+ }
+ [Fact] public void EmployeeDiscountRequiresOwnPermissionAndRespectsConfiguredLimit(){
+  using var f=new Fixture();var employee=f.Employee();var product=f.Product();
+  f.Pos.OpenShift(employee,0);
+  var discounted=f.Input(product) with{DiscountCents=100};
+  Assert.Throws<DomainException>(()=>f.Pos.Checkout(employee,discounted));
+  Assert.Throws<DomainException>(()=>f.Pos.Checkout(employee with{IsManager=true},discounted));
+  f.Security.Override(f.Manager,employee.UserId,"Sales.ApplyDiscount",true);
+  Assert.Throws<DomainException>(()=>f.Pos.Checkout(employee,discounted));
+  f.Pos.SetSetting(f.Manager,"EmployeeDiscountPercent","10");
+  Assert.Equal(900,f.Pos.Checkout(employee,discounted).Sale.TotalCents);
+  Assert.Throws<DomainException>(()=>f.Pos.Checkout(employee,f.Input(product) with{DiscountCents=200}));
+  using var db=f.Factory.Open();Assert.Empty(db.Set<ApprovalDecision>());
+ }
+ [Fact] public void InventoryAdjustmentRequiresGrantedPermissionNotOneTimeApproval(){
+  using var f=new Fixture();var employee=f.Employee();var product=f.Product();
+  Assert.Throws<DomainException>(()=>f.Pos.AdjustStock(employee,product,1,"Count"));
+  f.Security.Override(f.Manager,employee.UserId,"Inventory.Adjust",true);
+  f.Pos.AdjustStock(employee,product,1,"Count");
+  Assert.Equal(11,f.Pos.Products(f.Manager).Single().Stock);
+  using var db=f.Factory.Open();Assert.Empty(db.Set<ApprovalDecision>());
+  Assert.Null(db.Set<AuditLog>().OrderByDescending(x=>x.Id).First(x=>x.Action=="Inventory.Adjust").ApprovedBy);
+ }
+ [Fact] public void RefundRequiresGrantedPermissionNotManagerApproval(){
+  using var f=new Fixture();var employee=f.Employee();var product=f.Product();
+  f.Pos.OpenShift(employee,0);var sale=f.Pos.Checkout(employee,f.Input(product));
+  var refund=new RefundInput(Guid.NewGuid(),sale.Items.Single().Id,1,true,"Returned");
+  Assert.Throws<DomainException>(()=>f.Pos.Refund(employee,refund));
+  f.Security.Override(f.Manager,employee.UserId,"Sales.Refund",true);
+  Assert.True(f.Pos.Refund(employee,refund)>0);
+  Assert.Equal(10,f.Pos.Products(f.Manager).Single().Stock);
+  using var db=f.Factory.Open();Assert.Empty(db.Set<ApprovalDecision>());
+  Assert.Null(db.Set<AuditLog>().Single(x=>x.Action=="Sale.Refund").ApprovedBy);
+ }
  [Fact] public void PartialRefundsCannotExceedQuantityOrPayments(){using var f=new Fixture();var id=f.Product();f.Pos.OpenShift(f.Manager,0);var sale=f.Pos.Checkout(f.Manager,f.Input(id,3,3000));var item=sale.Items.Single();f.Pos.Refund(f.Manager,new RefundInput(Guid.NewGuid(),item.Id,1,true,"Returned"));Assert.Equal(8,f.Pos.Products(f.Manager).Single().Stock);f.Pos.Refund(f.Manager,new RefundInput(Guid.NewGuid(),item.Id,2,true,"Returned"));Assert.Throws<DomainException>(()=>f.Pos.Refund(f.Manager,new RefundInput(Guid.NewGuid(),item.Id,1,true,"Excess")));Assert.Equal(0,f.Pos.ExpectedCash(f.Manager));using var db=f.Factory.Open();Assert.Equal(3000,db.Set<Refund>().AsEnumerable().Sum(x=>x.AmountCents));Assert.Equal(3000,db.Set<RefundPayment>().AsEnumerable().Sum(x=>x.AmountCents));}
  [Fact] public void RefundRoundingUsesCumulativeAllocationAndNeverOverRefunds(){using var f=new Fixture();var id=f.Product(0.01m,0m,4);f.Pos.OpenShift(f.Manager,0);var sale=f.Pos.Checkout(f.Manager,f.Input(id,4,4) with{DiscountCents=2});for(int i=0;i<4;i++)f.Pos.Refund(f.Manager,new RefundInput(Guid.NewGuid(),sale.Items.Single().Id,1,true,"Return"));using var db=f.Factory.Open();var refunds=db.Set<Refund>().ToList();Assert.All(refunds,x=>Assert.True(x.AmountCents>=0));Assert.Equal(2,refunds.Sum(x=>x.AmountCents));}
  [Fact] public void DamagedReturnsDoNotReverseCostOfGoodsSold(){using var f=new Fixture();var id=f.Product(10,4);f.Pos.OpenShift(f.Manager,0);var sale=f.Pos.Checkout(f.Manager,f.Input(id));f.Pos.Refund(f.Manager,new RefundInput(Guid.NewGuid(),sale.Items.Single().Id,1,false,"Damaged"));var report=f.Pos.Report(f.Manager,f.Clock.UtcNow.Date,f.Clock.UtcNow.Date.AddDays(1));Assert.Equal(-400,report.GrossProfitCents);Assert.Equal(9,f.Pos.Products(f.Manager).Single().Stock);}
@@ -49,7 +89,7 @@ public sealed class IntegrationTests {
  [Fact] public void SameCheckoutIdWithDifferentPayloadIsRejected(){using var f=new Fixture();var id=f.Product();f.Pos.OpenShift(f.Manager,0);var input=f.Input(id);f.Pos.Checkout(f.Manager,input);Assert.Throws<DomainException>(()=>f.Pos.Checkout(f.Manager,input with{Notes="changed"}));}
  [Fact] public void CheckoutRejectsStaleExpectedPrice(){using var f=new Fixture();var id=f.Product();f.Pos.OpenShift(f.Manager,0);var input=f.Input(id) with{Lines=[new CartLine(id,1,null,900)]};Assert.Throws<DomainException>(()=>f.Pos.Checkout(f.Manager,input));using var db=f.Factory.Open();Assert.Empty(db.Set<Sale>());}
  [Fact] public void AuthorizedEmployeeCanEditNameWithoutReadingOrChangingCost(){using var f=new Fixture();var id=f.Product();var e=f.Employee();f.Security.Override(f.Manager,e.UserId,"Products.Edit",true);var product=f.Pos.Products(e).Single();f.Pos.SaveProduct(e,new ProductInput(id,product.SKU,product.Barcode,"New name",0,10,2));Assert.Equal(400,f.Pos.Products(f.Manager).Single().CostCents);Assert.Throws<DomainException>(()=>f.Pos.SaveProduct(e,new ProductInput(id,product.SKU,product.Barcode,"New name",1,10,2)));}
- [Fact] public void ProductPriceOverrideRequiresApproval(){using var f=new Fixture();var id=f.Product();var e=f.Employee();f.Pos.OpenShift(e,0);var input=f.Input(id) with{Lines=[new CartLine(id,1,900,1000)]};var failure=Assert.Throws<ApprovalRequiredException>(()=>f.Pos.Checkout(e,input));Assert.Equal("Sales.OverridePrice",failure.Permission);var token=f.Security.Approve(e,"manager","SafePass1234",failure.Permission,failure.Payload,"Agreed price");Assert.Equal(900,f.Pos.Checkout(e,input with{Approval=token}).Sale.TotalCents);}
+ [Fact] public void ProductPriceOverrideRequiresPermissionWithoutManagerApproval(){using var f=new Fixture();var id=f.Product();var e=f.Employee();f.Pos.OpenShift(e,0);var input=f.Input(id) with{Lines=[new CartLine(id,1,900,1000)]};Assert.Throws<DomainException>(()=>f.Pos.Checkout(e,input));f.Security.Override(f.Manager,e.UserId,"Sales.OverridePrice",true);Assert.Equal(900,f.Pos.Checkout(e,input).Sale.TotalCents);using var db=f.Factory.Open();Assert.Empty(db.Set<ApprovalDecision>());}
  [Fact] public void StockAdjustmentsAlsoCreateAuditRecords(){using var f=new Fixture();f.Product();Assert.Contains(f.Pos.Audit(f.Manager),x=>x.Action=="Inventory.Adjust");}
  [Fact] public void LogoutRevokesSessionAndCannotSpoofAnotherActor(){using var f=new Fixture();var e=f.Employee();var before=f.Pos.Audit(f.Manager).Count(x=>x.Action=="Logout");f.Security.Logout(e with{UserId=f.Manager.UserId});Assert.Equal(before,f.Pos.Audit(f.Manager).Count(x=>x.Action=="Logout"));Assert.Throws<DomainException>(()=>f.Pos.Products(e));}
  [Fact] public void ReturnedStockReentersAtOriginalCostSnapshot(){using var f=new Fixture();var id=f.Product(10,4);f.Pos.OpenShift(f.Manager,0);var sale=f.Pos.Checkout(f.Manager,f.Input(id));var supplier=f.Pos.SaveSupplier(f.Manager,0,"Supplier","","");f.Pos.CreatePurchase(f.Manager,supplier,"",[new PurchaseLine(id,5,800)]);f.Pos.ReceivePurchase(f.Manager,f.Pos.PurchaseItems(f.Manager).Single().Id,5);Assert.Equal(543,f.Pos.Products(f.Manager).Single().CostCents);f.Pos.Refund(f.Manager,new RefundInput(Guid.NewGuid(),sale.Items.Single().Id,1,true,"Returned"));Assert.Equal(533,f.Pos.Products(f.Manager).Single().CostCents);}
